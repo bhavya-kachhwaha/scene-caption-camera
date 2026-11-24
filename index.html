@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en" data-type="software">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Describe a webcam frame and read its caption aloud.">
+  <meta name="page-type" content="software">
+  <meta name="site-kind" content="software">
+  <title>Scene Caption Camera</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <a class="skip-link" href="#studio">Skip to the studio</a>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="./" aria-label="Scene Caption Camera home">
+        <span class="brand-mark" aria-hidden="true"><span></span></span>
+        Scene Caption Camera
+      </a>
+      <span class="privacy"><span class="privacy-dot" aria-hidden="true"></span> On-device processing</span>
+    </div>
+  </header>
+
+  <main class="wrap" id="studio" data-mode="scene" tabindex="-1">
+    <section class="intro" aria-labelledby="page-title" data-enter>
+      <h1 id="page-title">Scene Caption Camera</h1>
+      <p>Describe a webcam frame and read its caption aloud.</p>
+    </section>
+
+    <div class="modes" role="tablist" aria-label="Camera mode" hidden>
+      <button type="button" role="tab" id="tab-motion" aria-selected="true" aria-controls="panel-motion" data-mode="motion">Live detection</button>
+      <button type="button" role="tab" id="tab-gesture" aria-selected="false" aria-controls="panel-gesture" data-mode="gesture" tabindex="-1">Gesture to voice</button>
+      <button type="button" role="tab" id="tab-scene" aria-selected="false" aria-controls="panel-scene" data-mode="scene" tabindex="-1">Scene captions</button>
+      <button type="button" role="tab" id="tab-art" aria-selected="false" aria-controls="panel-art" data-mode="art" tabindex="-1">Particle artwork</button>
+    </div>
+
+    <div class="workspace">
+      <section class="camera surface" aria-labelledby="camera-title">
+        <header class="surface-header">
+          <h2 id="camera-title">Live camera preview</h2>
+          <span class="camera-status" id="camera-status"><span class="signal-dot" aria-hidden="true"></span><span id="camera-state" role="status">Camera off</span></span>
+        </header>
+        <div class="stage" id="stage">
+          <video id="video" autoplay muted playsinline aria-label="Live webcam preview"></video>
+          <canvas id="overlay" aria-hidden="true" hidden></canvas>
+          <canvas id="artwork" role="img" aria-label="A night landscape with a willow tree and a particle silhouette" hidden></canvas>
+          <div class="frame-guides" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+          <div class="placeholder" id="placeholder">
+            <span class="reticle" aria-hidden="true"><i></i><i></i><i></i><i></i><span></span></span>
+            <p id="placeholder-title">Camera is off</p>
+            <span id="placeholder-detail">Start your camera to see a live preview.</span>
+          </div>
+        </div>
+        <div class="camera-toolbar">
+          <button type="button" class="primary" id="camera-toggle">Start camera</button>
+          <label class="check"><input type="checkbox" id="mirror"> Mirror preview</label>
+        </div>
+        <p class="message" id="camera-error" role="alert" hidden></p>
+      </section>
+
+      <section class="surface panel" id="panel-motion" role="tabpanel" aria-labelledby="tab-motion" hidden>
+        <header class="surface-header"><h2>Live detection</h2></header>
+        <div class="panel-content">
+          <fieldset class="detection-modes" aria-label="Detection type">
+            <label><input type="radio" name="detection" id="detect-objects" checked><span>Objects</span></label>
+            <label><input type="radio" name="detection" id="detect-motion"><span>Motion</span></label>
+          </fieldset>
+          <div class="detection-view" id="object-view">
+            <div class="detection-heading"><h3>Objects in frame</h3><span id="object-count">—</span></div>
+            <p class="hint" id="object-state" role="status">Start the camera to scan for objects.</p>
+            <ul id="object-results" class="object-results" aria-label="Detected objects and confidence"></ul>
+            <button type="button" id="retry-objects" hidden>Retry object model</button>
+            <div class="controls">
+              <div class="range-label"><label for="confidence">Minimum confidence</label><output id="confidence-value" for="confidence">45%</output></div>
+              <input type="range" id="confidence" min="30" max="90" value="45">
+            </div>
+          </div>
+          <div class="detection-view" id="motion-view" hidden>
+            <div class="detection-heading"><h3>Motion activity</h3></div>
+            <div class="readout-value" id="motion-state" role="status">Waiting for camera</div>
+            <div class="metrics">
+              <div><span id="motion-regions">—</span><span>Active regions</span></div>
+              <div><span id="motion-area">—</span><span>Changed pixels</span></div>
+            </div>
+            <div class="controls">
+              <div class="range-label"><label for="sensitivity">Motion sensitivity</label><output id="sensitivity-value" for="sensitivity">55</output></div>
+              <input type="range" id="sensitivity" min="0" max="100" value="55">
+            </div>
+          </div>
+          <label class="check"><input id="show-boxes" type="checkbox" checked> Show boxes on preview</label>
+        </div>
+      </section>
+
+      <section class="surface panel" id="panel-gesture" role="tabpanel" aria-labelledby="tab-gesture" hidden>
+        <header class="surface-header"><h2>Gesture to voice</h2></header>
+        <div class="panel-content">
+          <p class="description">Hold a demo pose for 1.5 seconds to add a word. Lower your hand between poses.</p>
+          <div class="readout">
+            <div class="readout-label">Hand recognition</div>
+            <div class="readout-value" id="gesture-state" role="status">Waiting for camera</div>
+            <progress id="gesture-progress" max="1" value="0" aria-label="Hold progress"></progress>
+          </div>
+          <button type="button" id="retry-gestures" hidden>Retry hand model</button>
+          <div class="transcript">
+            <h3>Word sequence</h3>
+            <p class="hint" id="no-words">Recognized words appear here.</p>
+            <ol class="word-list" id="words" aria-live="polite"></ol>
+            <div class="actions">
+              <button type="button" id="speak-words" disabled>Speak sequence</button>
+              <button type="button" id="clear-words" disabled>Clear</button>
+            </div>
+            <label class="check"><input type="checkbox" id="speak-each"> Speak each word as it’s added</label>
+          </div>
+          <p class="hint" id="gesture-speech" role="status" hidden></p>
+          <details>
+            <summary>Supported demo poses</summary>
+            <dl>
+              <div><dt>Peace sign</dt><dd>Use</dd></div>
+              <div><dt>One open palm</dt><dd>Technology</dd></div>
+              <div><dt>Index finger up</dt><dd>For</dd></div>
+              <div><dt>Thumbs up</dt><dd>Help</dd></div>
+              <div><dt>Index and pinky up, thumb tucked</dt><dd>Not</dd></div>
+              <div><dt>Closed fist</dt><dd>War</dd></div>
+              <div><dt>Index, pinky, and thumb extended</dt><dd>I love you</dd></div>
+              <div><dt>Two open palms for 2 seconds</dt><dd>Speak sequence</dd></div>
+            </dl>
+          </details>
+        </div>
+      </section>
+
+      <section class="surface panel" id="panel-scene" role="tabpanel" aria-labelledby="tab-scene">
+        <header class="surface-header"><h2>Scene captions</h2></header>
+        <div class="panel-content">
+          <p class="description">Generate a short description of the current camera frame.</p>
+          <div class="readout">
+            <div class="readout-label">Latest caption</div>
+            <p class="caption" id="caption" aria-live="polite">No caption yet.</p>
+            <p class="caption-tags" id="caption-tags" hidden></p>
+          </div>
+          <div class="actions">
+            <button type="button" id="caption-frame" disabled>Describe frame</button>
+            <button type="button" id="speak-caption" disabled>Speak caption</button>
+          </div>
+          <label class="check"><input type="checkbox" id="auto-caption"> Refresh captions automatically</label>
+          <p class="hint" id="scene-speech" role="status" hidden></p>
+          <p class="hint" id="caption-status" role="status">Start your camera to capture a frame.</p>
+          <p class="hint">The first caption downloads about 250 MB of model weights. Captions can miss or mislabel objects.</p>
+        </div>
+      </section>
+
+      <section class="surface panel" id="panel-art" role="tabpanel" aria-labelledby="tab-art" hidden>
+        <header class="surface-header"><h2>Particle artwork</h2></header>
+        <div class="panel-content">
+          <p class="description">Stand in view of the camera to appear as blue and violet particles in the landscape.</p>
+          <div class="readout">
+            <div class="readout-label">Silhouette source</div>
+            <div class="readout-value" id="art-state" role="status">Camera or demo</div>
+            <p class="hint" id="art-points">0 silhouette particles</p>
+            <p class="hint" id="art-motion">Start the camera to measure movement.</p>
+          </div>
+          <div class="actions">
+            <button type="button" id="art-demo" aria-pressed="false">Demo silhouette</button>
+            <button type="button" id="retry-art" hidden>Retry person model</button>
+          </div>
+          <div class="controls">
+            <div class="range-label"><label for="art-wind">Wind strength</label><output id="art-wind-value" for="art-wind">65</output></div>
+            <input type="range" id="art-wind" min="0" max="100" value="65">
+            <label class="check"><input type="checkbox" id="art-animate" checked> Animate landscape</label>
+            <label class="check"><input type="checkbox" id="art-show-motion" checked> Highlight body motion</label>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer>Camera frames stay in your browser.</footer>
+  </main>
+</body>
+</html>
