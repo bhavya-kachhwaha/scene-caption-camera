@@ -597,7 +597,8 @@ function describeFrame() {
     frame.height = Math.max(1, Math.round(video.videoHeight * scale));
     frameContext.drawImage(video, 0, 0, frame.width, frame.height);
     const { buffer } = frameContext.getImageData(0, 0, frame.width, frame.height).data;
-    captionWorker.postMessage({ id, width: frame.width, height: frame.height, buffer }, [buffer]);
+    captionWorker.postMessage({ id, width: frame.width, height: frame.height, buffer,
+      modelHost: studio.dataset.captionModelHost }, [buffer]);
   } catch (error) {
     captionFailed(error);
   }

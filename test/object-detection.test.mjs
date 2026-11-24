@@ -52,4 +52,5 @@ test("object tracks confirm twice, smooth matching boxes, and expire after a bri
   assert.equal(next[0].x, 0.21875);
   assert.deepEqual(trackObjects(next, [], 360), next);
   assert.deepEqual(trackObjects(next, [], 581), []);
+  assert.equal(trackObjects(first, [box], 800)[0].seen, 2);
 });

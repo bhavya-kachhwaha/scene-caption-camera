@@ -62,7 +62,7 @@ The two detectors report different information. Object detection predicts a clas
 | 54 | `return intersection / (a.width * a.height + b.width * b.height - intersection);` | Divides the shared area by the total area covered by either box. |
 | 55 | `}` | Closes the block or callback opened on line 50. |
 | 57 | `export function trackObjects(previous, detections, now) {` | Associates current detections with recent boxes of the same class. |
-| 58 | `const unmatched = previous.filter(object => now - object.lastSeen <= 500);` | Keeps only previous tracks younger than half a second as matching candidates. |
+| 58 | `const unmatched = [...previous];` | Copies prior tracks so even slow consecutive inferences can match without mutating the old array. |
 | 59 | `const tracks = detections.map(object => {` | Builds a track for each current detection. |
 | 60 | `let match = -1;` | Starts with no matching track. |
 | 61 | `let best = 0.3;` | Requires more than 30 percent overlap before two boxes can match. |
@@ -397,30 +397,32 @@ The two detectors report different information. Object detection predicts a clas
 | ---: | --- | --- |
 | 1 | `const TRANSFORMERS = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/";` | Pins the exact browser build of Transformers.js. |
 | 2 | `const MODEL = "Xenova/vit-gpt2-image-captioning";` | Selects the quantized ONNX image captioning model. |
-| 4 | `let captioner;` | Holds the initialized image-to-text pipeline across worker requests. |
-| 5 | `let RawImage;` | Holds the library's image wrapper class after the first import. |
-| 7 | `self.onmessage = async ({ data: { id, width, height, buffer } }) => {` | Receives a request and unpacks its id, dimensions, and transferred pixel buffer. |
-| 8 | `try {` | Wraps startup and caption inference in one error handler. |
-| 9 | `if (!captioner) {` | Loads the library and model on the first request handled by this worker. |
-| 10 | `self.postMessage({ id, status: "loading" });` | Sends a loading message that the main UI can display. |
-| 11 | `const library = await import(TRANSFORMERS + "transformers.min.js");` | Imports the browser library over a public model-asset connection. |
-| 12 | `RawImage = library.RawImage;` | Stores the constructor used to wrap raw RGBA pixels. |
-| 13 | `library.env.allowLocalModels = false;` | Directs the library to fetch the public model rather than looking for a local model directory. |
-| 14 | `library.env.backends.onnx.wasm.numThreads = 1;` | Uses one WebAssembly thread so the app can run on a plain local static server. |
-| 15 | `// Keep the WASM runtime and JavaScript glue on the same distribution.` | Explains why the next line pins runtime files together with the library build. |
-| 16 | `library.env.backends.onnx.wasm.wasmPaths = TRANSFORMERS;` | Points ONNX Runtime to the matching JavaScript and WebAssembly distribution. |
-| 17 | `captioner = await library.pipeline("image-to-text", MODEL, { device: "wasm", dtype: "q8" });` | Downloads and prepares the quantized pipeline using the WebAssembly backend. |
-| 18 | `}` | Closes the block or callback opened on line 9. |
-| 20 | `self.postMessage({ id, status: "working" });` | Reports that the model is ready and the caption inference is starting. |
-| 21 | `const image = new RawImage(new Uint8ClampedArray(buffer), width, height, 4);` | Rebuilds an RGBA image wrapper around the transferred pixel bytes. Four channels are supplied. |
-| 22 | `const [result] = await captioner(image, { max_new_tokens: 30 });` | Runs caption generation with a limit of 30 new tokens and reads the first result. |
-| 23 | `const caption = result.generated_text.trim();` | Trims whitespace from the model's generated text. |
-| 24 | `if (!caption) throw new Error("The model returned an empty caption.");` | Treats a blank caption as a recoverable failure. |
-| 25 | `self.postMessage({ id, caption });` | Sends the generated caption and its request id to the page. |
-| 26 | `} catch (error) {` | Catches download, initialization, or inference errors. |
-| 27 | `self.postMessage({ id, error: error.message \|\| String(error) });` | Sends the error detail back to the main thread so the UI can show a retry. |
-| 28 | `}` | Closes the block or callback opened on line 26. |
-| 29 | `};` | Closes the block or callback opened on line 7. |
+| 3 | `const REVISION = "077550ae0729f9af280c9d885ea9b0380fc8e815";` | Pins the exact model revision so local and hosted demos use matching files. |
+| 5 | `let captioner;` | Holds the initialized image-to-text pipeline across worker requests. |
+| 6 | `let RawImage;` | Holds the library's image wrapper class after the first import. |
+| 8 | `self.onmessage = async ({ data: { id, width, height, buffer, modelHost } }) => {` | Unpacks the request id, image shape, transferred buffer, and optional model asset host. |
+| 9 | `try {` | Wraps startup and caption inference in one error handler. |
+| 10 | `if (!captioner) {` | Loads the library and model on the first request handled by this worker. |
+| 11 | `self.postMessage({ id, status: "loading" });` | Sends a loading message that the main UI can display. |
+| 12 | `const library = await import(TRANSFORMERS + "transformers.min.js");` | Imports the browser library over a public model-asset connection. |
+| 13 | `RawImage = library.RawImage;` | Stores the constructor used to wrap raw RGBA pixels. |
+| 14 | `library.env.allowLocalModels = false;` | Directs the library to fetch the public model rather than looking for a local model directory. |
+| 15 | `if (modelHost) library.env.remoteHost = new URL(modelHost, self.location.href).href;` | Uses the configured model file host for deployments that serve public weights through their own domain. |
+| 16 | `library.env.backends.onnx.wasm.numThreads = 1;` | Uses one WebAssembly thread so the app can run on a plain local static server. |
+| 17 | `// Keep the WASM runtime and JavaScript glue on the same distribution.` | Explains why the next line pins runtime files together with the library build. |
+| 18 | `library.env.backends.onnx.wasm.wasmPaths = TRANSFORMERS;` | Points ONNX Runtime to the matching JavaScript and WebAssembly distribution. |
+| 19 | `captioner = await library.pipeline("image-to-text", MODEL, { device: "wasm", dtype: "q8", revision: REVISION });` | Prepares the pinned quantized caption model with the WebAssembly backend. |
+| 20 | `}` | Closes the block or callback opened on line 10. |
+| 22 | `self.postMessage({ id, status: "working" });` | Reports that the model is ready and the caption inference is starting. |
+| 23 | `const image = new RawImage(new Uint8ClampedArray(buffer), width, height, 4);` | Rebuilds an RGBA image wrapper around the transferred pixel bytes. Four channels are supplied. |
+| 24 | `const [result] = await captioner(image, { max_new_tokens: 30 });` | Runs caption generation with a limit of 30 new tokens and reads the first result. |
+| 25 | `const caption = result.generated_text.trim();` | Trims whitespace from the model's generated text. |
+| 26 | `if (!caption) throw new Error("The model returned an empty caption.");` | Treats a blank caption as a recoverable failure. |
+| 27 | `self.postMessage({ id, caption });` | Sends the generated caption and its request id to the page. |
+| 28 | `} catch (error) {` | Catches download, initialization, or inference errors. |
+| 29 | `self.postMessage({ id, error: error.message \|\| String(error) });` | Sends the error detail back to the main thread so the UI can show a retry. |
+| 30 | `}` | Closes the block or callback opened on line 28. |
+| 31 | `};` | Closes the block or callback opened on line 8. |
 
 ## `test/object-detection.test.mjs`
 
@@ -480,7 +482,8 @@ The two detectors report different information. Object detection predicts a clas
 | 52 | `assert.equal(next[0].x, 0.21875);` | Confirms smoothing blends the first and second positions. |
 | 53 | `assert.deepEqual(trackObjects(next, [], 360), next);` | Simulates a brief missed detection and verifies that a confirmed track remains visible. |
 | 54 | `assert.deepEqual(trackObjects(next, [], 581), []);` | Checks that the track disappears after its hold expires. |
-| 55 | `});` | Closes the block or callback opened on line 45. |
+| 55 | `assert.equal(trackObjects(first, [box], 800)[0].seen, 2);` | Checks that two consecutive detections still confirm on a device that takes 800 ms to process the next sample. |
+| 56 | `});` | Closes the block or callback opened on line 45. |
 
 ## `test/silhouette-motion.test.mjs`
 

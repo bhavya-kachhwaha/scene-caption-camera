@@ -55,7 +55,7 @@ function overlap(a, b) {
 }
 
 export function trackObjects(previous, detections, now) {
-  const unmatched = previous.filter(object => now - object.lastSeen <= 500);
+  const unmatched = [...previous];
   const tracks = detections.map(object => {
     let match = -1;
     let best = 0.3;

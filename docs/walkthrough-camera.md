@@ -613,64 +613,65 @@ The app opens one camera stream. The mode buttons decide which feature can read 
 | 597 | `frame.height = Math.max(1, Math.round(video.videoHeight * scale));` | Resizes the canvas to the scaled video height and preserves the source aspect ratio. |
 | 598 | `frameContext.drawImage(video, 0, 0, frame.width, frame.height);` | Copies the camera frame into the private snapshot canvas. |
 | 599 | `const { buffer } = frameContext.getImageData(0, 0, frame.width, frame.height).data;` | Reads an RGBA image and extracts its underlying pixel buffer. |
-| 600 | `captionWorker.postMessage({ id, width: frame.width, height: frame.height, buffer }, [buffer]);` | Transfers ownership of the buffer to the local worker without copying it or uploading it. |
-| 601 | `} catch (error) {` | Receives an exception from worker creation or snapshot capture. |
-| 602 | `captionFailed(error);` | Runs the same recovery logic as a worker-reported error. |
-| 603 | `}` | Closes the block or callback opened on line 601. |
-| 604 | `}` | Closes the block or callback opened on line 558. |
+| 600 | `captionWorker.postMessage({ id, width: frame.width, height: frame.height, buffer,` | Sends the caption worker this request, its dimensions, and its pixel buffer. |
+| 601 | `modelHost: studio.dataset.captionModelHost }, [buffer]);` | Passes an optional same-origin model host, then transfers the image buffer without copying. |
+| 602 | `} catch (error) {` | Receives an exception from worker creation or snapshot capture. |
+| 603 | `captionFailed(error);` | Runs the same recovery logic as a worker-reported error. |
+| 604 | `}` | Closes the block or callback opened on line 602. |
+| 605 | `}` | Closes the block or callback opened on line 558. |
 
 ### Control and page events
 
 | Line | Source | What the line does |
 | ---: | --- | --- |
-| 606 | `get("camera-toggle").addEventListener("click", () => stream ? stopCamera() : void startCamera());` | Starts or stops the shared camera when the main button is clicked. |
-| 607 | `get("mirror").addEventListener("change", event => {` | Listens for a change to the mirror option. |
-| 608 | `video.classList.toggle("mirrored", event.target.checked);` | Applies the checkbox value as a horizontal transform on the live video. |
-| 609 | `if (mode === "motion" && objectMode.checked) updateObjects();` | Reprojects current object boxes when the user mirrors the live video. |
-| 610 | `redrawArtwork();` | Marks the particle foreground for repaint so it can follow the mirror setting. |
-| 611 | `});` | Closes the block or callback opened on line 607. |
-| 612 | `video.classList.toggle("mirrored", get("mirror").checked);` | Syncs the initial video transform with the current checkbox value. |
-| 613 | `get("sensitivity").addEventListener("input", event => setText("sensitivity-value", event.target.value));` | Updates the displayed sensitivity number as the slider is moved. |
-| 614 | `for (const choice of document.querySelectorAll('input[name="detection"]')) {` | Visits the two native controls that select the detection type. |
-| 615 | `choice.addEventListener("change", () => {` | Responds when either detection option becomes selected. |
-| 616 | `get("object-view").hidden = !objectMode.checked;` | Hides the object tools while the Motion option is active. |
-| 617 | `get("motion-view").hidden = objectMode.checked;` | Shows the motion tools only while Motion is selected. |
-| 618 | `resetAnalysis();` | Clears prior frame results and starts the selected analysis with fresh state. |
-| 619 | `});` | Closes the block or callback opened on line 615. |
-| 620 | `}` | Closes the block or callback opened on line 614. |
-| 621 | `confidence.addEventListener("input", () => {` | Responds immediately as the confidence slider moves. |
-| 622 | `setText("confidence-value", confidence.value + "%");` | Shows the selected threshold as a percentage. |
-| 623 | `updateObjects();` | Applies the new threshold to the most recent object results. |
-| 624 | `});` | Closes the block or callback opened on line 621. |
-| 625 | `showBoxes.addEventListener("change", () => {` | Responds when the user changes overlay visibility. |
-| 626 | `if (objectMode.checked) updateObjects();` | Clears or repaints the object boxes immediately in the Objects view. |
-| 627 | `});` | Closes the block or callback opened on line 625. |
-| 628 | `get("retry-objects").addEventListener("click", () => void prepareVision(objectTask));` | Connects the retry button to the shared loader for the object task. |
-| 629 | `get("retry-gestures").addEventListener("click", () => void prepareVision(handTask));` | Connects the hand retry button to that same loader. |
-| 630 | `get("speak-words").addEventListener("click", () => speak(sequenceText(words), "gesture"));` | Formats the existing word sequence and sends it to speech. |
-| 631 | `get("clear-words").addEventListener("click", () => {` | Binds the action that clears the accepted words. |
-| 632 | `words.length = 0;` | Empties the word array without replacing the array object. |
-| 633 | `updateWords();` | Removes the visible transcript and disables its empty-state actions. |
-| 634 | `clearSpeech();` | Stops speech that belonged to the old sequence. |
-| 635 | `});` | Closes the block or callback opened on line 631. |
-| 636 | `get("caption-frame").addEventListener("click", describeFrame);` | Connects Describe frame to the snapshot and caption routine. |
-| 637 | `get("speak-caption").addEventListener("click", () => speak(lastCaption, "scene"));` | Reads the cached caption aloud when the user chooses Speak caption. |
-| 638 | `get("auto-caption").addEventListener("change", () => { nextCaptionAt = 0; });` | Makes automatic capture immediately eligible when the checkbox changes. |
-| 639 | `function redrawArtwork() {` | Flags artwork changes made by controls. |
-| 640 | `artDirty = true;` | Marks the cached art draw as stale. |
-| 641 | `scheduleFrame();` | Queues a new frame even if the paused artwork had stopped rendering. |
-| 642 | `}` | Closes the block or callback opened on line 639. |
-| 643 | `get("art-demo").addEventListener("click", () => {` | Binds the camera-free silhouette toggle. |
-| 644 | `demoSilhouette = !demoSilhouette;` | Flips whether the synthetic silhouette is enabled. |
-| 645 | `updateArtworkStatus();` | Updates the demo button and source status to match the new value. |
-| 646 | `redrawArtwork();` | Queues a repaint to show or remove the demo figure. |
-| 647 | `});` | Closes the block or callback opened on line 643. |
-| 648 | `get("retry-art").addEventListener("click", () => void prepareVision(personTask));` | Connects the person model retry to the shared vision loader. |
-| 649 | `get("art-wind").addEventListener("input", event => {` | Handles live changes to the Wind strength slider. |
-| 650 | `setText("art-wind-value", event.target.value);` | Displays the current wind setting beside the slider. |
-| 651 | `redrawArtwork();` | Marks the art for a redraw with the changed wind strength. |
-| 652 | `});` | Closes the block or callback opened on line 649. |
-| 653 | `animateArtwork.addEventListener("change", redrawArtwork);` | Repaints when decorative animation is enabled or paused. |
-| 654 | `highlightMotion.addEventListener("change", redrawArtwork);` | Repaints the artwork with its current motion highlighting preference. |
-| 655 | `window.addEventListener("pagehide", () => stopCamera());` | Releases the video tracks and active inference when the user leaves the page. |
-| 656 | `if (studio.dataset.mode !== mode) selectMode(studio.dataset.mode);` | Opens the mode specified by the HTML when a standalone project starts directly in its own mode. |
+| 607 | `get("camera-toggle").addEventListener("click", () => stream ? stopCamera() : void startCamera());` | Starts or stops the shared camera when the main button is clicked. |
+| 608 | `get("mirror").addEventListener("change", event => {` | Listens for a change to the mirror option. |
+| 609 | `video.classList.toggle("mirrored", event.target.checked);` | Applies the checkbox value as a horizontal transform on the live video. |
+| 610 | `if (mode === "motion" && objectMode.checked) updateObjects();` | Reprojects current object boxes when the user mirrors the live video. |
+| 611 | `redrawArtwork();` | Marks the particle foreground for repaint so it can follow the mirror setting. |
+| 612 | `});` | Closes the block or callback opened on line 608. |
+| 613 | `video.classList.toggle("mirrored", get("mirror").checked);` | Syncs the initial video transform with the current checkbox value. |
+| 614 | `get("sensitivity").addEventListener("input", event => setText("sensitivity-value", event.target.value));` | Updates the displayed sensitivity number as the slider is moved. |
+| 615 | `for (const choice of document.querySelectorAll('input[name="detection"]')) {` | Visits the two native controls that select the detection type. |
+| 616 | `choice.addEventListener("change", () => {` | Responds when either detection option becomes selected. |
+| 617 | `get("object-view").hidden = !objectMode.checked;` | Hides the object tools while the Motion option is active. |
+| 618 | `get("motion-view").hidden = objectMode.checked;` | Shows the motion tools only while Motion is selected. |
+| 619 | `resetAnalysis();` | Clears prior frame results and starts the selected analysis with fresh state. |
+| 620 | `});` | Closes the block or callback opened on line 616. |
+| 621 | `}` | Closes the block or callback opened on line 615. |
+| 622 | `confidence.addEventListener("input", () => {` | Responds immediately as the confidence slider moves. |
+| 623 | `setText("confidence-value", confidence.value + "%");` | Shows the selected threshold as a percentage. |
+| 624 | `updateObjects();` | Applies the new threshold to the most recent object results. |
+| 625 | `});` | Closes the block or callback opened on line 622. |
+| 626 | `showBoxes.addEventListener("change", () => {` | Responds when the user changes overlay visibility. |
+| 627 | `if (objectMode.checked) updateObjects();` | Clears or repaints the object boxes immediately in the Objects view. |
+| 628 | `});` | Closes the block or callback opened on line 626. |
+| 629 | `get("retry-objects").addEventListener("click", () => void prepareVision(objectTask));` | Connects the retry button to the shared loader for the object task. |
+| 630 | `get("retry-gestures").addEventListener("click", () => void prepareVision(handTask));` | Connects the hand retry button to that same loader. |
+| 631 | `get("speak-words").addEventListener("click", () => speak(sequenceText(words), "gesture"));` | Formats the existing word sequence and sends it to speech. |
+| 632 | `get("clear-words").addEventListener("click", () => {` | Binds the action that clears the accepted words. |
+| 633 | `words.length = 0;` | Empties the word array without replacing the array object. |
+| 634 | `updateWords();` | Removes the visible transcript and disables its empty-state actions. |
+| 635 | `clearSpeech();` | Stops speech that belonged to the old sequence. |
+| 636 | `});` | Closes the block or callback opened on line 632. |
+| 637 | `get("caption-frame").addEventListener("click", describeFrame);` | Connects Describe frame to the snapshot and caption routine. |
+| 638 | `get("speak-caption").addEventListener("click", () => speak(lastCaption, "scene"));` | Reads the cached caption aloud when the user chooses Speak caption. |
+| 639 | `get("auto-caption").addEventListener("change", () => { nextCaptionAt = 0; });` | Makes automatic capture immediately eligible when the checkbox changes. |
+| 640 | `function redrawArtwork() {` | Flags artwork changes made by controls. |
+| 641 | `artDirty = true;` | Marks the cached art draw as stale. |
+| 642 | `scheduleFrame();` | Queues a new frame even if the paused artwork had stopped rendering. |
+| 643 | `}` | Closes the block or callback opened on line 640. |
+| 644 | `get("art-demo").addEventListener("click", () => {` | Binds the camera-free silhouette toggle. |
+| 645 | `demoSilhouette = !demoSilhouette;` | Flips whether the synthetic silhouette is enabled. |
+| 646 | `updateArtworkStatus();` | Updates the demo button and source status to match the new value. |
+| 647 | `redrawArtwork();` | Queues a repaint to show or remove the demo figure. |
+| 648 | `});` | Closes the block or callback opened on line 644. |
+| 649 | `get("retry-art").addEventListener("click", () => void prepareVision(personTask));` | Connects the person model retry to the shared vision loader. |
+| 650 | `get("art-wind").addEventListener("input", event => {` | Handles live changes to the Wind strength slider. |
+| 651 | `setText("art-wind-value", event.target.value);` | Displays the current wind setting beside the slider. |
+| 652 | `redrawArtwork();` | Marks the art for a redraw with the changed wind strength. |
+| 653 | `});` | Closes the block or callback opened on line 650. |
+| 654 | `animateArtwork.addEventListener("change", redrawArtwork);` | Repaints when decorative animation is enabled or paused. |
+| 655 | `highlightMotion.addEventListener("change", redrawArtwork);` | Repaints the artwork with its current motion highlighting preference. |
+| 656 | `window.addEventListener("pagehide", () => stopCamera());` | Releases the video tracks and active inference when the user leaves the page. |
+| 657 | `if (studio.dataset.mode !== mode) selectMode(studio.dataset.mode);` | Opens the mode specified by the HTML when a standalone project starts directly in its own mode. |
